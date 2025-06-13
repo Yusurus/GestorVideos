@@ -357,4 +357,330 @@ class VideoDownloaderView:
             self.on_clear_log()
     
     def _handle_open_folder(self):
-        """Maneja el evento de
+        """Maneja el evento de abrir carpeta."""
+        if self.on_open_folder:
+            self.on_open_folder()
+    
+    def _handle_save_log(self):
+        """Maneja el evento de guardar registro."""
+        if self.on_save_log:
+            self.on_save_log()
+    
+    def _handle_closing(self):
+        """Maneja el evento de cierre de la ventana."""
+        if self.on_closing:
+            self.on_closing()
+        else:
+            self.root.destroy()
+    
+    # === MÉTODOS PÚBLICOS PARA EL CONTROLADOR ===
+    
+    def set_callbacks(self, **callbacks):
+        """
+        Establece las funciones callback para comunicación con el controlador.
+        
+        Args:
+            **callbacks: Diccionario con los callbacks a establecer
+        """
+        for callback_name, callback_func in callbacks.items():
+            if hasattr(self, callback_name):
+                setattr(self, callback_name, callback_func)
+    
+    def get_url(self) -> str:
+        """
+        Obtiene la URL ingresada por el usuario.
+        
+        Returns:
+            str: URL ingresada
+        """
+        if self.url_entry:
+            return self.url_entry.get().strip()
+        return ""
+    
+    def set_url(self, url: str):
+        """
+        Establece una URL en el campo de entrada.
+        
+        Args:
+            url: URL a establecer
+        """
+        if self.url_entry:
+            self.url_entry.delete(0, tk.END)
+            self.url_entry.insert(0, url)
+    
+    def get_download_type(self) -> str:
+        """
+        Obtiene el tipo de descarga seleccionado.
+        
+        Returns:
+            str: 'single' o 'playlist'
+        """
+        return self.download_type.get()
+    
+    def get_quality(self) -> str:
+        """
+        Obtiene la calidad seleccionada.
+        
+        Returns:
+            str: Calidad seleccionada
+        """
+        if self.quality_combo:
+            return self.quality_combo.get()
+        return "720p"
+    
+    def set_quality_options(self, options: List[str]):
+        """
+        Establece las opciones disponibles de calidad.
+        
+        Args:
+            options: Lista de opciones de calidad
+        """
+        if self.quality_combo:
+            self.quality_combo['values'] = options
+            if options and self.quality_combo.get() not in options:
+                self.quality_combo.set(options[0])
+    
+    def get_download_path(self) -> str:
+        """
+        Obtiene la ruta de descarga seleccionada.
+        
+        Returns:
+            str: Ruta de descarga
+        """
+        return self.download_path.get()
+    
+    def set_download_path(self, path: str):
+        """
+        Establece la ruta de descarga.
+        
+        Args:
+            path: Nueva ruta de descarga
+        """
+        self.download_path.set(path)
+    
+    def add_log_message(self, message: str):
+        """
+        Añade un mensaje al área de registro.
+        
+        Args:
+            message: Mensaje a añadir
+        """
+        if self.log_text:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            formatted_message = f"[{timestamp}] {message}\n"
+            
+            self.log_text.insert(tk.END, formatted_message)
+            self.log_text.see(tk.END)
+            self.root.update_idletasks()
+    
+    def clear_log(self):
+        """
+        Limpia el área de registro.
+        """
+        if self.log_text:
+            self.log_text.delete(1.0, tk.END)
+    
+    def get_log_content(self) -> str:
+        """
+        Obtiene el contenido completo del registro.
+        
+        Returns:
+            str: Contenido del registro
+        """
+        if self.log_text:
+            return self.log_text.get(1.0, tk.END)
+        return ""
+    
+    def set_download_state(self, is_downloading: bool):
+        """
+        Actualiza el estado visual según si se está descargando o no.
+        
+        Args:
+            is_downloading: True si se está descargando, False en caso contrario
+        """
+        if is_downloading:
+            # Deshabilitar controles durante descarga
+            self.download_btn.config(state=tk.DISABLED)
+            self.info_btn.config(state=tk.DISABLED)
+            self.cancel_btn.config(state=tk.NORMAL)
+            
+            # Iniciar animación de progreso
+            self.progress_bar.config(mode='indeterminate')
+            self.progress_bar.start(10)
+            
+        else:
+            # Habilitar controles después de descarga
+            self.download_btn.config(state=tk.NORMAL)
+            self.info_btn.config(state=tk.NORMAL)
+            self.cancel_btn.config(state=tk.DISABLED)
+            
+            # Detener animación de progreso
+            self.progress_bar.stop()
+            self.progress_bar.config(mode='determinate')
+            self.progress_bar['value'] = 0
+    
+    def update_progress(self, percentage: float = None):
+        """
+        Actualiza la barra de progreso.
+        
+        Args:
+            percentage: Porcentaje de progreso (0-100), None para modo indeterminado
+        """
+        if percentage is not None:
+            self.progress_bar.config(mode='determinate')
+            self.progress_bar['value'] = percentage
+        else:
+            self.progress_bar.config(mode='indeterminate')
+    
+    def show_info_dialog(self, info: Dict[str, Any]):
+        """
+        Muestra un diálogo con información del video/playlist.
+        
+        Args:
+            info: Diccionario con información a mostrar
+        """
+        # Crear ventana de diálogo
+        dialog = tk.Toplevel(self.root)
+        dialog.title("ℹ️ Información del Video/Playlist")
+        dialog.geometry("500x400")
+        dialog.resizable(False, False)
+        dialog.grab_set()  # Hacer modal
+        
+        # Centrar diálogo
+        dialog.transient(self.root)
+        
+        # Área de texto para mostrar información
+        text_area = scrolledtext.ScrolledText(dialog, wrap=tk.WORD, 
+                                             font=('Arial', 10), 
+                                             padx=10, pady=10)
+        text_area.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Formatear y mostrar información
+        info_text = self._format_info_for_display(info)
+        text_area.insert(tk.END, info_text)
+        text_area.config(state=tk.DISABLED)
+        
+        # Botón cerrar
+        close_btn = ttk.Button(dialog, text="Cerrar", 
+                              command=dialog.destroy)
+        close_btn.pack(pady=10)
+    
+    def _format_info_for_display(self, info: Dict[str, Any]) -> str:
+        """
+        Formatea la información para mostrar en el diálogo.
+        
+        Args:
+            info: Información a formatear
+            
+        Returns:
+            str: Texto formateado
+        """
+        text = ""
+        
+        if 'titulo' in info:
+            text += f"🎬 Título: {info['titulo']}\n"
+        if 'canal' in info:
+            text += f"👤 Canal: {info['canal']}\n"
+        if 'fecha' in info:
+            text += f"📅 Fecha: {info['fecha']}\n"
+        if 'duracion' in info:
+            text += f"⏱️ Duración: {info['duracion']}\n"
+        if 'vistas' in info:
+            text += f"👁️ Vistas: {info['vistas']}\n"
+        
+        if 'calidades' in info and info['calidades']:
+            text += f"\n🎥 Calidades disponibles:\n"
+            for calidad in info['calidades']:
+                text += f"  • {calidad}\n"
+        
+        if 'total_videos' in info:
+            text += f"\n📋 Total de videos en playlist: {info['total_videos']}\n"
+            
+            if 'videos' in info and info['videos']:
+                text += "\n📝 Videos en la playlist:\n"
+                for video in info['videos'][:10]:  # Mostrar solo los primeros 10
+                    text += f"  {video['numero']}. {video['titulo']} ({video['duracion']})\n"
+                
+                if len(info['videos']) > 10:
+                    text += f"  ... y {len(info['videos']) - 10} videos más\n"
+        
+        return text
+    
+    def show_error_dialog(self, title: str, message: str):
+        """
+        Muestra un diálogo de error.
+        
+        Args:
+            title: Título del diálogo
+            message: Mensaje de error
+        """
+        messagebox.showerror(title, message)
+    
+    def show_success_dialog(self, title: str, message: str):
+        """
+        Muestra un diálogo de éxito.
+        
+        Args:
+            title: Título del diálogo
+            message: Mensaje de éxito
+        """
+        messagebox.showinfo(title, message)
+    
+    def show_question_dialog(self, title: str, message: str) -> bool:
+        """
+        Muestra un diálogo de pregunta.
+        
+        Args:
+            title: Título del diálogo
+            message: Mensaje de pregunta
+            
+        Returns:
+            bool: True si el usuario respondió sí, False en caso contrario
+        """
+        return messagebox.askyesno(title, message)
+    
+    def select_folder(self, initial_dir: str = None) -> str:
+        """
+        Abre un diálogo para seleccionar carpeta.
+        
+        Args:
+            initial_dir: Directorio inicial
+            
+        Returns:
+            str: Ruta seleccionada o cadena vacía si se canceló
+        """
+        folder = filedialog.askdirectory(
+            title="Seleccionar carpeta de descarga",
+            initialdir=initial_dir
+        )
+        return folder if folder else ""
+    
+    def select_save_file(self, default_name: str = "registro.txt") -> str:
+        """
+        Abre un diálogo para guardar archivo.
+        
+        Args:
+            default_name: Nombre por defecto del archivo
+            
+        Returns:
+            str: Ruta seleccionada o cadena vacía si se canceló
+        """
+        file_path = filedialog.asksaveasfilename(
+            title="Guardar registro",
+            defaultextension=".txt",
+            filetypes=[("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")],
+            initialvalue=default_name
+        )
+        return file_path if file_path else ""
+    
+    def run(self):
+        """
+        Inicia el bucle principal de la interfaz gráfica.
+        """
+        self.root.mainloop()
+    
+    def destroy(self):
+        """
+        Destruye la ventana principal.
+        """
+        self.root.destroy()
